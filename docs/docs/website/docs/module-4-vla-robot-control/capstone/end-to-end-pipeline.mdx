@@ -1,0 +1,297 @@
+---
+title: End-to-End VLA Pipeline
+sidebar_label: End-to-End VLA Pipeline
+description: Complete Vision-Language-Action pipeline overview
+---
+
+# End-to-End VLA Pipeline
+
+This section covers the complete Vision-Language-Action (VLA) pipeline that integrates speech recognition, vision processing, and LLM planning for humanoid robot control.
+
+## Overview
+
+The end-to-end VLA pipeline combines all components into a cohesive system that enables natural language interaction with humanoid robots. The pipeline processes voice commands, performs visual perception, uses LLMs for planning, and executes actions through ROS 2.
+
+## Technical Architecture
+
+The complete VLA pipeline follows this architecture:
+
+```
+User Voice Command
+        ↓
+    Whisper Transcription
+        ↓
+    Intent Mapping
+        ↓
+    LLM Task Decomposition
+        ↓
+    Action Sequence Validation
+        ↓
+    Safety and Error Handling
+        ↓
+    ROS 2 Action Execution
+        ↓
+    Robot Response
+```
+
+## Implementation Steps
+
+### 1. VLA System Manager
+
+```python
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+from sensor_msgs.msg import Image
+from geometry_msgs.msg import Point
+import json
+
+class VLAPipelineManager(Node):
+    def __init__(self):
+        super().__init__('vla_pipeline_manager')
+
+        # Publishers
+        self.voice_cmd_publisher = self.create_publisher(String, 'voice_commands', 10)
+        self.robot_intent_publisher = self.create_publisher(String, 'robot_intents', 10)
+        self.plan_publisher = self.create_publisher(String, 'generated_plans', 10)
+        self.action_publisher = self.create_publisher(String, 'robot_actions', 10)
+        self.result_publisher = self.create_publisher(String, 'pipeline_results', 10)
+
+        # Subscribers
+        self.voice_subscriber = self.create_subscription(
+            String,
+            'voice_commands',
+            self.voice_callback,
+            10
+        )
+
+        self.intent_subscriber = self.create_subscription(
+            String,
+            'robot_intents',
+            self.intent_callback,
+            10
+        )
+
+        self.plan_subscriber = self.create_subscription(
+            String,
+            'generated_plans',
+            self.plan_callback,
+            10
+        )
+
+        self.result_subscriber = self.create_subscription(
+            String,
+            'execution_results',
+            self.result_callback,
+            10
+        )
+
+        # Initialize pipeline components
+        self.voice_processor = MockVoiceProcessor()
+        self.intent_mapper = MockIntentMapper()
+        self.llm_planner = MockLLMPlanner()
+        self.action_executor = MockActionExecutor()
+
+        self.get_logger().info('VLA Pipeline Manager initialized')
+
+    def voice_callback(self, msg):
+        """Handle voice command input"""
+        voice_cmd = msg.data
+        self.get_logger().info(f'Received voice command: {voice_cmd}')
+
+        # Process the voice command through the pipeline
+        intent = self.intent_mapper.map_intent(voice_cmd)
+
+        if intent:
+            intent_msg = String()
+            intent_msg.data = json.dumps({
+                'type': intent.intent_type.value,
+                'parameters': intent.parameters,
+                'confidence': intent.confidence
+            })
+            self.robot_intent_publisher.publish(intent_msg)
+
+    def intent_callback(self, msg):
+        """Handle intent processing"""
+        intent_data = json.loads(msg.data)
+        self.get_logger().info(f'Received intent: {intent_data["type"]}')
+
+        # Generate plan based on intent
+        plan = self.llm_planner.generate_plan(intent_data)
+
+        if plan and plan.steps:
+            plan_msg = String()
+            plan_msg.data = json.dumps({
+                'original_task': intent_data.get('original_task', ''),
+                'steps': [
+                    {
+                        'action_type': step.action_type,
+                        'parameters': step.parameters,
+                        'description': step.description
+                    }
+                    for step in plan.steps
+                ],
+                'confidence': plan.confidence
+            })
+            self.plan_publisher.publish(plan_msg)
+
+    def plan_callback(self, msg):
+        """Handle plan execution"""
+        plan_data = json.loads(msg.data)
+        self.get_logger().info(f'Received plan with {len(plan_data["steps"])} steps')
+
+        # Execute the action sequence
+        execution_result = self.action_executor.execute_sequence(plan_data['steps'])
+
+        result_msg = String()
+        result_msg.data = json.dumps({
+            'status': execution_result['status'],
+            'steps_executed': execution_result.get('steps_executed', 0),
+            'errors': execution_result.get('errors', [])
+        })
+        self.result_publisher.publish(result_msg)
+
+    def result_callback(self, msg):
+        """Handle execution results"""
+        result_data = json.loads(msg.data)
+        status = result_data['status']
+        self.get_logger().info(f'Pipeline execution result: {status}')
+
+        # Publish final result
+        final_result_msg = String()
+        final_result_msg.data = f'VLA pipeline completed with status: {status}'
+        self.result_publisher.publish(final_result_msg)
+
+class MockVoiceProcessor:
+    """Mock voice processor for demonstration"""
+    def process_audio(self, audio_data):
+        # In a real implementation, this would process audio through Whisper
+        return "move to kitchen"
+
+class MockIntentMapper:
+    """Mock intent mapper for demonstration"""
+    def map_intent(self, text):
+        from intent_mapping import RobotIntent, RobotIntentType
+        # Return a mock intent
+        return RobotIntent(
+            intent_type=RobotIntentType.NAVIGATION,
+            parameters={'target': 'kitchen'},
+            confidence=0.8
+        )
+
+class MockLLMPlanner:
+    """Mock LLM planner for demonstration"""
+    def generate_plan(self, intent_data):
+        from task_decomposition import LLMPlan, TaskStep
+        # Create a mock plan based on intent
+        if intent_data['type'] == 'navigation':
+            steps = [
+                TaskStep(
+                    action_type='navigation',
+                    parameters={'target': intent_data['parameters'].get('target', 'unknown')},
+                    description=f'Navigate to {intent_data["parameters"].get("target", "unknown")}'
+                )
+            ]
+        else:
+            steps = [
+                TaskStep(
+                    action_type='sensing',
+                    parameters={'target': 'object'},
+                    description='Look for object'
+                )
+            ]
+
+        return LLMPlan(
+            original_task=f'Go to {intent_data["parameters"].get("target", "unknown")}',
+            steps=steps,
+            confidence=0.8
+        )
+
+class MockActionExecutor:
+    """Mock action executor for demonstration"""
+    def execute_sequence(self, steps):
+        # Simulate execution of action sequence
+        for i, step in enumerate(steps):
+            print(f"Executing step {i+1}: {step['description']}")
+
+        return {
+            'status': 'completed',
+            'steps_executed': len(steps),
+            'errors': []
+        }
+
+def main(args=None):
+    rclpy.init(args=args)
+    vla_manager = VLAPipelineManager()
+    rclpy.spin(vla_manager)
+    vla_manager.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+### 2. Component Integration Example
+
+```python
+# Example of how all components work together
+def run_complete_vla_pipeline():
+    """
+    Example function showing how all VLA components integrate
+    """
+    # 1. Voice Processing
+    voice_processor = MockVoiceProcessor()
+    voice_cmd = "Please go to the kitchen and pick up the red cup"
+
+    # 2. Intent Mapping
+    intent_mapper = MockIntentMapper()
+    intent = intent_mapper.map_intent(voice_cmd)
+
+    # 3. LLM Planning
+    llm_planner = MockLLMPlanner()
+    plan = llm_planner.generate_plan({
+        'type': intent.intent_type.value,
+        'parameters': intent.parameters
+    })
+
+    # 4. Action Execution
+    action_executor = MockActionExecutor()
+    result = action_executor.execute_sequence(plan.steps)
+
+    print(f"Pipeline result: {result['status']}")
+    print(f"Steps executed: {result['steps_executed']}")
+```
+
+## System Integration Patterns
+
+### Pattern 1: Sequential Processing
+- Each component processes data before passing to the next
+- Simple to implement and debug
+- May have latency issues for real-time applications
+
+### Pattern 2: Parallel Processing
+- Components can process data in parallel where possible
+- Better performance but more complex coordination
+- Requires careful state management
+
+### Pattern 3: Event-Driven Architecture
+- Components react to events from other components
+- Loose coupling between components
+- Better for distributed systems
+
+## Best Practices
+
+- Ensure each component can operate independently for testing
+- Implement proper error handling between components
+- Use consistent data formats across the pipeline
+- Monitor pipeline performance and identify bottlenecks
+- Implement logging for debugging and analysis
+
+## Troubleshooting
+
+Common issues and solutions:
+
+- **Pipeline latency**: Optimize individual components and consider parallel processing
+- **Component failures**: Implement retry mechanisms and fallback procedures
+- **Data format inconsistencies**: Use consistent data schemas across components
+- **State synchronization**: Implement proper state management between components

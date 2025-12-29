@@ -1,0 +1,160 @@
+# Quick Reference Guide
+
+## VLA System Components
+
+### Voice Processing
+- **Input**: Voice commands
+- **Processing**: Whisper transcription
+- **Output**: Transcribed text
+- **ROS 2 Topic**: `/voice_commands`
+
+### Intent Mapping
+- **Input**: Transcribed text
+- **Processing**: Natural language understanding
+- **Output**: Robot intents
+- **ROS 2 Topic**: `/robot_intents`
+
+### LLM Planning
+- **Input**: Robot intents
+- **Processing**: Task decomposition
+- **Output**: Action sequences
+- **ROS 2 Topic**: `/generated_plans`
+
+### Action Execution
+- **Input**: Action sequences
+- **Processing**: ROS 2 action execution
+- **Output**: Robot actions
+- **ROS 2 Topic**: `/robot_actions`
+
+## Common Commands
+
+### Launch VLA Pipeline
+```bash
+# Launch the complete VLA pipeline
+ros2 launch vla_pipeline main.launch.py
+```
+
+### Test Voice Processing
+```bash
+# Publish a test voice command
+ros2 topic pub /voice_commands std_msgs/String "data: 'go to kitchen'"
+```
+
+### Monitor Pipeline Status
+```bash
+# Check active nodes
+ros2 node list
+
+# Monitor voice commands
+ros2 topic echo /voice_commands
+
+# Monitor robot intents
+ros2 topic echo /robot_intents
+
+# Monitor generated plans
+ros2 topic echo /generated_plans
+```
+
+## Configuration Parameters
+
+### Voice Processing Parameters
+- `whisper_model`: Whisper model size ('tiny', 'base', 'small', 'medium', 'large')
+- `audio_sample_rate`: Audio sampling rate (default: 16000 Hz)
+- `transcription_confidence_threshold`: Minimum confidence for valid transcription (default: 0.5)
+
+### LLM Planning Parameters
+- `llm_model`: LLM model to use (default: 'gpt-3.5-turbo')
+- `max_tokens`: Maximum tokens for LLM responses (default: 500)
+- `temperature`: LLM creativity parameter (default: 0.3)
+
+### Safety Parameters
+- `navigation_safety_distance`: Minimum distance to obstacles (default: 0.5m)
+- `manipulation_weight_limit`: Maximum weight for manipulation (default: 5.0kg)
+- `action_timeout`: Maximum time for action execution (default: 30s)
+
+## Error Codes
+
+### Voice Processing Errors
+- `V001`: Audio input failure
+- `V002`: Transcription confidence too low
+- `V003`: Whisper model loading error
+
+### Intent Mapping Errors
+- `I001`: Intent not recognized
+- `I002`: Parameter extraction failure
+- `I003`: Invalid intent parameters
+
+### LLM Planning Errors
+- `L001`: LLM API error
+- `L002`: Plan validation failure
+- `L003`: Safety check violation
+
+### Action Execution Errors
+- `A001`: Action server unavailable
+- `A002`: Action execution timeout
+- `A003`: Safety violation during execution
+
+## Common Voice Commands
+
+### Navigation
+- "Go to the kitchen"
+- "Move to the living room"
+- "Navigate to the bedroom"
+- "Go forward/backward/left/right"
+
+### Manipulation
+- "Pick up the red cup"
+- "Grasp the blue bottle"
+- "Take the green box"
+- "Move the object to the table"
+
+### Sensing
+- "Look at the red cup"
+- "Find the blue bottle"
+- "Detect objects in the room"
+- "Scan the environment"
+
+## Development Workflow
+
+### 1. Implement Component
+```bash
+# Create new component
+mkdir -p src/components/<component_name>
+```
+
+### 2. Test Component
+```bash
+# Run component tests
+python -m pytest tests/unit/test_<component>.py
+
+# Test component integration
+python -m pytest tests/integration/test_<component>.py
+```
+
+### 3. Validate Pipeline
+```bash
+# Run end-to-end validation
+python -m pytest tests/e2e/test_vla_pipeline.py
+```
+
+## Performance Benchmarks
+
+### Voice Processing
+- **Latency**: < 500ms for transcription
+- **Accuracy**: > 90% for clear audio
+- **Throughput**: Real-time processing
+
+### Intent Mapping
+- **Latency**: < 100ms for intent recognition
+- **Accuracy**: > 95% for common commands
+- **Coverage**: > 90% of valid intents
+
+### LLM Planning
+- **Latency**: < 2s for plan generation
+- **Success Rate**: > 85% for valid plans
+- **Safety**: 100% safety check pass rate
+
+### Action Execution
+- **Success Rate**: > 90% for basic actions
+- **Latency**: < 5s for simple actions
+- **Reliability**: < 5% failure rate

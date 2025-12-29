@@ -1,0 +1,210 @@
+---
+title: Intent Mapping
+sidebar_label: Intent Mapping
+description: Mapping speech to robot intents in VLA systems
+---
+
+# Intent Mapping
+
+This section covers mapping transcribed speech to robot intents that can trigger appropriate actions.
+
+## Overview
+
+Intent mapping is the process of converting transcribed speech into actionable robot intents. This involves natural language processing to understand the user's command and map it to specific robot behaviors or actions.
+
+## Technical Architecture
+
+The intent mapping process follows this flow:
+
+1. Transcribed text from speech recognition
+2. Natural language processing to identify intent
+3. Parameter extraction from the command
+4. Mapping to specific robot action types
+5. Validation of intent and parameters
+6. Triggering of ROS 2 actions
+
+## Implementation Steps
+
+### 1. Basic Intent Recognition
+
+```python
+import re
+from enum import Enum
+from dataclasses import dataclass
+from typing import Dict, Any, Optional
+
+class RobotIntentType(Enum):
+    NAVIGATION = "navigation"
+    MANIPULATION = "manipulation"
+    SENSING = "sensing"
+    COMMUNICATION = "communication"
+
+@dataclass
+class RobotIntent:
+    intent_type: RobotIntentType
+    parameters: Dict[str, Any]
+    confidence: float
+
+class IntentMapper:
+    def __init__(self):
+        self.intent_patterns = {
+            RobotIntentType.NAVIGATION: [
+                r"go to (.+)",
+                r"move to (.+)",
+                r"navigate to (.+)",
+                r"go forward",
+                r"go backward",
+                r"turn left",
+                r"turn right"
+            ],
+            RobotIntentType.MANIPULATION: [
+                r"pick up (.+)",
+                r"grasp (.+)",
+                r"take (.+)",
+                r"move (.+) to (.+)"
+            ],
+            RobotIntentType.SENSING: [
+                r"look at (.+)",
+                r"scan (.+)",
+                r"detect (.+)",
+                r"find (.+)"
+            ]
+        }
+
+    def map_intent(self, text: str) -> Optional[RobotIntent]:
+        text = text.lower().strip()
+
+        for intent_type, patterns in self.intent_patterns.items():
+            for pattern in patterns:
+                match = re.search(pattern, text)
+                if match:
+                    parameters = self.extract_parameters(match, pattern, text)
+                    return RobotIntent(
+                        intent_type=intent_type,
+                        parameters=parameters,
+                        confidence=0.8  # Base confidence
+                    )
+
+        return None
+
+    def extract_parameters(self, match, pattern, text):
+        """Extract parameters from matched text"""
+        parameters = {}
+        groups = match.groups()
+
+        if len(groups) > 0:
+            parameters['target'] = groups[0]
+            if len(groups) > 1:
+                parameters['destination'] = groups[1]
+
+        return parameters
+```
+
+### 2. ROS 2 Node for Intent Processing
+
+```python
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+from geometry_msgs.msg import Pose
+from action_msgs.msg import GoalStatus
+
+class IntentProcessorNode(Node):
+    def __init__(self):
+        super().__init__('intent_processor')
+
+        # Subscriber for transcribed voice commands
+        self.voice_subscriber = self.create_subscription(
+            String,
+            'voice_commands',
+            self.voice_callback,
+            10
+        )
+
+        # Publisher for intent results
+        self.intent_publisher = self.create_publisher(
+            String,
+            'robot_intents',
+            10
+        )
+
+        # Initialize intent mapper
+        self.intent_mapper = IntentMapper()
+
+    def voice_callback(self, msg):
+        text = msg.data
+        self.get_logger().info(f'Received voice command: {text}')
+
+        # Map the intent
+        intent = self.intent_mapper.map_intent(text)
+
+        if intent:
+            self.get_logger().info(f'Mapped intent: {intent.intent_type} with params: {intent.parameters}')
+
+            # Publish the intent
+            intent_msg = String()
+            intent_msg.data = f"{intent.intent_type.value}:{intent.parameters}"
+            self.intent_publisher.publish(intent_msg)
+
+            # Trigger appropriate ROS 2 action based on intent
+            self.execute_intent(intent)
+        else:
+            self.get_logger().warn(f'Could not map intent for: {text}')
+
+    def execute_intent(self, intent: RobotIntent):
+        """Execute the appropriate ROS 2 action based on intent"""
+        if intent.intent_type == RobotIntentType.NAVIGATION:
+            self.execute_navigation(intent.parameters)
+        elif intent.intent_type == RobotIntentType.MANIPULATION:
+            self.execute_manipulation(intent.parameters)
+        elif intent.intent_type == RobotIntentType.SENSING:
+            self.execute_sensing(intent.parameters)
+
+    def execute_navigation(self, parameters):
+        """Execute navigation action"""
+        # Implementation for navigation
+        self.get_logger().info(f'Executing navigation to: {parameters.get("target", "unknown")}')
+
+    def execute_manipulation(self, parameters):
+        """Execute manipulation action"""
+        # Implementation for manipulation
+        self.get_logger().info(f'Executing manipulation for: {parameters.get("target", "unknown")}')
+
+    def execute_sensing(self, parameters):
+        """Execute sensing action"""
+        # Implementation for sensing
+        self.get_logger().info(f'Executing sensing for: {parameters.get("target", "unknown")}')
+
+def main(args=None):
+    rclpy.init(args=args)
+    intent_processor = IntentProcessorNode()
+    rclpy.spin(intent_processor)
+    intent_processor.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+## Advanced Intent Mapping
+
+For more sophisticated intent mapping, consider using:
+
+- Natural language processing libraries like spaCy or NLTK
+- Pre-trained language models for intent classification
+- Custom training data for domain-specific intents
+
+## Best Practices
+
+- Validate extracted parameters to ensure they're within acceptable ranges
+- Implement fallback mechanisms for unrecognized intents
+- Include confidence scoring to handle uncertain mappings
+- Provide feedback to users about intent recognition
+
+## Troubleshooting
+
+Common issues and solutions:
+
+- **Low intent recognition accuracy**: Expand pattern matching or use ML-based classification
+- **Parameter extraction errors**: Implement more robust parameter parsing
+- **False positives**: Add context awareness to intent recognition

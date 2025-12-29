@@ -1,0 +1,254 @@
+---
+title: Task Decomposition
+sidebar_label: Task Decomposition
+description: Using LLMs for task decomposition in VLA systems
+---
+
+# Task Decomposition
+
+This section covers using large language models (LLMs) for decomposing complex tasks into sequences of executable actions in VLA systems.
+
+## Overview
+
+Task decomposition is the process of breaking down complex natural language tasks into smaller, manageable steps that can be executed by robotic systems. LLMs excel at this task by leveraging their understanding of language and world knowledge to create structured plans.
+
+## Technical Architecture
+
+The LLM-based task decomposition follows this flow:
+
+1. Natural language task description from user
+2. LLM processing to understand the task
+3. Decomposition into subtasks
+4. Mapping subtasks to ROS 2 actions
+5. Validation of the action sequence
+6. Execution planning with safety checks
+
+## Implementation Steps
+
+### 1. LLM Task Decomposition Service
+
+```python
+import openai
+import json
+from typing import List, Dict, Any
+from dataclasses import dataclass
+
+@dataclass
+class TaskStep:
+    action_type: str
+    parameters: Dict[str, Any]
+    description: str
+
+@dataclass
+class LLMPlan:
+    original_task: str
+    steps: List[TaskStep]
+    confidence: float
+
+class LLMTaskDecomposer:
+    def __init__(self, api_key: str):
+        openai.api_key = api_key
+        self.action_mapping = {
+            "navigation": ["go to", "move to", "navigate to", "walk to"],
+            "manipulation": ["pick up", "grasp", "take", "move"],
+            "sensing": ["look at", "find", "detect", "scan"],
+            "communication": ["say", "speak", "tell"]
+        }
+
+    def decompose_task(self, task_description: str) -> LLMPlan:
+        """
+        Decompose a natural language task into a sequence of actions
+        """
+        prompt = f"""
+        You are a robot task planner. Decompose the following task into a sequence of specific actions.
+        Each action should be one of: navigation, manipulation, sensing, communication.
+        Return the result as a JSON object with 'steps' array containing objects with 'action_type', 'parameters', and 'description'.
+
+        Task: {task_description}
+
+        Example response format:
+        {{
+            "steps": [
+                {{"action_type": "sensing", "parameters": {{"target": "red cup"}}, "description": "Look for the red cup"}},
+                {{"action_type": "navigation", "parameters": {{"target": "kitchen"}}, "description": "Go to the kitchen"}},
+                {{"action_type": "manipulation", "parameters": {{"target": "red cup"}}, "description": "Pick up the red cup"}}
+            ]
+        }}
+        """
+
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3
+            )
+
+            result = json.loads(response.choices[0].message.content)
+            steps = [
+                TaskStep(
+                    action_type=step['action_type'],
+                    parameters=step['parameters'],
+                    description=step['description']
+                )
+                for step in result.get('steps', [])
+            ]
+
+            return LLMPlan(
+                original_task=task_description,
+                steps=steps,
+                confidence=0.8  # Base confidence
+            )
+        except Exception as e:
+            print(f"Error decomposing task: {e}")
+            return LLMPlan(original_task=task_description, steps=[], confidence=0.0)
+```
+
+### 2. ROS 2 Node for LLM Planning
+
+```python
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+from action_msgs.msg import GoalStatus
+import json
+
+class LLMPlannerNode(Node):
+    def __init__(self):
+        super().__init__('llm_planner')
+
+        # Subscriber for natural language tasks
+        self.task_subscriber = self.create_subscription(
+            String,
+            'natural_language_tasks',
+            self.task_callback,
+            10
+        )
+
+        # Publisher for generated plans
+        self.plan_publisher = self.create_publisher(
+            String,
+            'generated_plans',
+            10
+        )
+
+        # Initialize LLM task decomposer
+        # In a real implementation, use your actual API key
+        # self.llm_decomposer = LLMTaskDecomposer(api_key="your-api-key")
+
+        # For this example, we'll use a mock implementation
+        self.llm_decomposer = MockLLMTaskDecomposer()
+
+    def task_callback(self, msg):
+        task_description = msg.data
+        self.get_logger().info(f'Received task: {task_description}')
+
+        # Decompose the task using LLM
+        plan = self.llm_decomposer.decompose_task(task_description)
+
+        if plan.steps:
+            self.get_logger().info(f'Generated plan with {len(plan.steps)} steps')
+
+            # Prepare plan for publishing
+            plan_data = {
+                'original_task': plan.original_task,
+                'steps': [
+                    {
+                        'action_type': step.action_type,
+                        'parameters': step.parameters,
+                        'description': step.description
+                    }
+                    for step in plan.steps
+                ],
+                'confidence': plan.confidence
+            }
+
+            # Publish the plan
+            plan_msg = String()
+            plan_msg.data = json.dumps(plan_data)
+            self.plan_publisher.publish(plan_msg)
+
+            self.get_logger().info('Published generated plan')
+        else:
+            self.get_logger().warn('No steps generated for the task')
+
+class MockLLMTaskDecomposer:
+    """Mock implementation for demonstration purposes"""
+    def decompose_task(self, task_description: str) -> LLMPlan:
+        # Simple mock implementation for common tasks
+        if "kitchen" in task_description.lower() and "cup" in task_description.lower():
+            steps = [
+                TaskStep(
+                    action_type="sensing",
+                    parameters={"target": "red cup"},
+                    description="Look for the red cup"
+                ),
+                TaskStep(
+                    action_type="navigation",
+                    parameters={"target": "kitchen"},
+                    description="Go to the kitchen"
+                ),
+                TaskStep(
+                    action_type="manipulation",
+                    parameters={"target": "red cup"},
+                    description="Pick up the red cup"
+                )
+            ]
+        elif "kitchen" in task_description.lower():
+            steps = [
+                TaskStep(
+                    action_type="navigation",
+                    parameters={"target": "kitchen"},
+                    description="Go to the kitchen"
+                )
+            ]
+        else:
+            steps = [
+                TaskStep(
+                    action_type="sensing",
+                    parameters={"target": "object"},
+                    description="Look for the object"
+                )
+            ]
+
+        return LLMPlan(
+            original_task=task_description,
+            steps=steps,
+            confidence=0.8
+        )
+
+def main(args=None):
+    rclpy.init(args=args)
+    llm_planner = LLMPlannerNode()
+    rclpy.spin(llm_planner)
+    llm_planner.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+## Advanced Task Decomposition
+
+For more sophisticated task decomposition, consider:
+
+- Fine-tuning LLMs on domain-specific robotic tasks
+- Using structured prompting techniques for consistent output
+- Implementing multi-step validation of generated plans
+- Adding temporal and spatial reasoning to task decomposition
+
+## Best Practices
+
+- Validate the action sequence before execution
+- Include error handling and recovery strategies
+- Use confidence scores to assess plan quality
+- Implement safety checks for each action in the sequence
+- Provide feedback to users about the planned sequence
+
+## Troubleshooting
+
+Common issues and solutions:
+
+- **Inconsistent LLM output**: Use structured prompting and output validation
+- **Invalid action sequences**: Implement plan validation before execution
+- **API rate limits**: Add caching and rate limiting to LLM calls
+- **Context confusion**: Provide clear task context and constraints

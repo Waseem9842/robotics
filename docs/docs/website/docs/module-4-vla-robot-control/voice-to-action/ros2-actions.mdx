@@ -1,0 +1,297 @@
+---
+title: ROS 2 Actions
+sidebar_label: ROS 2 Actions
+description: Triggering ROS 2 actions from voice commands in VLA systems
+---
+
+# ROS 2 Actions
+
+This section covers triggering ROS 2 actions from voice commands in the Vision-Language-Action pipeline.
+
+## Overview
+
+ROS 2 actions provide a way to send goals to robot systems and receive feedback during execution. In the context of voice command processing, ROS 2 actions are the final output of the VLA pipeline, executing the robot behaviors identified by the voice processing and intent mapping components.
+
+## Technical Architecture
+
+The ROS 2 action triggering follows this flow:
+
+1. Robot intent from intent mapping component
+2. Validation of action parameters and safety checks
+3. Creation of ROS 2 action goal
+4. Sending goal to appropriate action server
+5. Monitoring execution progress
+6. Providing feedback to the user
+
+## Implementation Steps
+
+### 1. ROS 2 Action Client for Navigation
+
+```python
+import rclpy
+from rclpy.action import ActionClient
+from rclpy.node import Node
+from nav2_msgs.action import NavigateToPose
+from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import String
+import json
+
+class NavigationActionClient(Node):
+    def __init__(self):
+        super().__init__('navigation_action_client')
+        self._action_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
+
+        # Subscribe to robot intents
+        self.intent_subscriber = self.create_subscription(
+            String,
+            'robot_intents',
+            self.intent_callback,
+            10
+        )
+
+    def intent_callback(self, msg):
+        intent_data = json.loads(msg.data)
+        intent_type = intent_data.get('type')
+        parameters = intent_data.get('parameters', {})
+
+        if intent_type == 'navigation':
+            self.send_navigate_goal(parameters)
+
+    def send_navigate_goal(self, parameters):
+        goal_msg = NavigateToPose.Goal()
+
+        # Set target pose based on parameters
+        pose = PoseStamped()
+        pose.header.frame_id = 'map'
+
+        # Extract target location from parameters
+        target_location = parameters.get('target', 'unknown')
+
+        # In a real implementation, you would map location names to coordinates
+        # This is a simplified example
+        if target_location == 'kitchen':
+            pose.pose.position.x = 1.0
+            pose.pose.position.y = 2.0
+            pose.pose.orientation.w = 1.0
+        elif target_location == 'living_room':
+            pose.pose.position.x = 3.0
+            pose.pose.position.y = 1.0
+            pose.pose.orientation.w = 1.0
+        else:
+            self.get_logger().warn(f'Unknown location: {target_location}')
+            return
+
+        goal_msg.pose = pose
+
+        self._action_client.wait_for_server()
+        self._send_goal_future = self._action_client.send_goal_async(
+            goal_msg,
+            feedback_callback=self.feedback_callback
+        )
+
+        self._send_goal_future.add_done_callback(self.goal_response_callback)
+
+    def goal_response_callback(self, future):
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self.get_logger().info('Goal rejected')
+            return
+
+        self.get_logger().info('Goal accepted')
+        self._get_result_future = goal_handle.get_result_async()
+        self._get_result_future.add_done_callback(self.get_result_callback)
+
+    def feedback_callback(self, feedback_msg):
+        self.get_logger().info(f'Received feedback: {feedback_msg.feedback}')
+
+    def get_result_callback(self, future):
+        result = future.result().result
+        self.get_logger().info(f'Result: {result}')
+```
+
+### 2. Manipulation Action Client
+
+```python
+import rclpy
+from rclpy.action import ActionClient
+from rclpy.node import Node
+from std_msgs.msg import String
+import json
+
+class ManipulationActionClient(Node):
+    def __init__(self):
+        super().__init__('manipulation_action_client')
+        # Initialize action clients for manipulation tasks
+        # self._pick_place_client = ActionClient(self, PickPlaceAction, 'pick_place')
+
+        # Subscribe to robot intents
+        self.intent_subscriber = self.create_subscription(
+            String,
+            'robot_intents',
+            self.intent_callback,
+            10
+        )
+
+    def intent_callback(self, msg):
+        intent_data = json.loads(msg.data)
+        intent_type = intent_data.get('type')
+        parameters = intent_data.get('parameters', {})
+
+        if intent_type == 'manipulation':
+            self.execute_manipulation(parameters)
+
+    def execute_manipulation(self, parameters):
+        target_object = parameters.get('target', 'unknown')
+        self.get_logger().info(f'Executing manipulation for: {target_object}')
+
+        # In a real implementation, this would trigger manipulation actions
+        # such as picking up an object, moving it, etc.
+        # self.send_pick_place_goal(target_object)
+```
+
+### 3. Combined Action Manager
+
+```python
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+from action_msgs.msg import GoalStatus
+import json
+
+class VLAActionManager(Node):
+    def __init__(self):
+        super().__init__('vla_action_manager')
+
+        # Subscribe to robot intents
+        self.intent_subscriber = self.create_subscription(
+            String,
+            'robot_intents',
+            self.intent_callback,
+            10
+        )
+
+        # Publisher for action results
+        self.result_publisher = self.create_publisher(
+            String,
+            'action_results',
+            10
+        )
+
+        # Initialize action clients for different types
+        self.navigation_client = NavigationActionClient()
+        self.manipulation_client = ManipulationActionClient()
+
+        self.get_logger().info('VLA Action Manager initialized')
+
+    def intent_callback(self, msg):
+        try:
+            # Parse intent data
+            if msg.data.startswith('{'):  # JSON format
+                intent_data = json.loads(msg.data)
+                intent_type = intent_data.get('type')
+                parameters = intent_data.get('parameters', {})
+            else:
+                # Handle simple string format
+                parts = msg.data.split(':')
+                if len(parts) >= 2:
+                    intent_type = parts[0]
+                    parameters = {'raw': ':'.join(parts[1:])}
+                else:
+                    intent_type = 'unknown'
+                    parameters = {}
+
+            self.get_logger().info(f'Processing intent: {intent_type} with params: {parameters}')
+
+            # Execute appropriate action based on intent type
+            if intent_type == 'navigation':
+                self.execute_navigation_action(parameters)
+            elif intent_type == 'manipulation':
+                self.execute_manipulation_action(parameters)
+            elif intent_type == 'sensing':
+                self.execute_sensing_action(parameters)
+            else:
+                self.get_logger().warn(f'Unknown intent type: {intent_type}')
+
+        except Exception as e:
+            self.get_logger().error(f'Error processing intent: {e}')
+
+    def execute_navigation_action(self, parameters):
+        """Execute navigation action with safety checks"""
+        # Validate parameters
+        if 'target' not in parameters:
+            self.get_logger().warn('Navigation intent missing target parameter')
+            return
+
+        # Perform safety checks
+        if self.is_safe_to_navigate(parameters['target']):
+            self.get_logger().info(f'Navigating to: {parameters["target"]}')
+            # Call navigation action client
+        else:
+            self.get_logger().warn(f'Navigation to {parameters["target"]} is not safe')
+
+    def execute_manipulation_action(self, parameters):
+        """Execute manipulation action with safety checks"""
+        # Validate parameters
+        if 'target' not in parameters:
+            self.get_logger().warn('Manipulation intent missing target parameter')
+            return
+
+        # Perform safety checks
+        if self.is_safe_to_manipulate(parameters['target']):
+            self.get_logger().info(f'Manipulating: {parameters["target"]}')
+            # Call manipulation action client
+        else:
+            self.get_logger().warn(f'Manipulation of {parameters["target"]} is not safe')
+
+    def execute_sensing_action(self, parameters):
+        """Execute sensing action"""
+        target = parameters.get('target', 'environment')
+        self.get_logger().info(f'Sensing: {target}')
+        # Call sensing action client
+
+    def is_safe_to_navigate(self, target):
+        """Check if navigation to target is safe"""
+        # In a real implementation, this would check:
+        # - Obstacle maps
+        # - Robot kinematic constraints
+        # - Safety zones
+        return True
+
+    def is_safe_to_manipulate(self, target):
+        """Check if manipulation of target is safe"""
+        # In a real implementation, this would check:
+        # - Object properties
+        # - Robot kinematic constraints
+        # - Safety zones
+        return True
+
+def main(args=None):
+    rclpy.init(args=args)
+    action_manager = VLAActionManager()
+
+    # Spin the action manager node
+    rclpy.spin(action_manager)
+
+    action_manager.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+## Best Practices
+
+- Always perform safety checks before executing actions
+- Implement proper error handling and recovery mechanisms
+- Use feedback callbacks to monitor action progress
+- Validate action parameters before sending goals
+- Implement timeouts for long-running actions
+
+## Troubleshooting
+
+Common issues and solutions:
+
+- **Action server not responding**: Verify the action server is running and accessible
+- **Parameter validation errors**: Check that action parameters match expected types
+- **Safety validation failures**: Review safety constraints and environment conditions
+- **Timeout issues**: Adjust timeout values based on action complexity

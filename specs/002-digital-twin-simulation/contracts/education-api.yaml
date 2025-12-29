@@ -1,0 +1,96 @@
+# API Contract: Digital Twin Simulation Educational Content
+
+## Overview
+This contract defines the interface for accessing and managing educational content related to digital twin simulation.
+
+## Endpoints
+
+### GET /api/education/module-2-digital-twin
+Retrieve information about the Digital Twin Simulation module.
+
+**Response**:
+```json
+{
+  "moduleId": "module-2-digital-twin",
+  "title": "Digital Twin Simulation (Gazebo & Unity)",
+  "description": "Learn to create digital twins of humanoid robots and environments using Gazebo and Unity",
+  "chapters": [
+    {
+      "id": "chapter-1-gazebo-physics",
+      "title": "Physics-Based Simulation with Gazebo",
+      "description": "Learn about physics simulation using Gazebo",
+      "order": 1
+    },
+    {
+      "id": "chapter-2-unity-environments",
+      "title": "High-Fidelity Environments with Unity",
+      "description": "Explore visual simulation with Unity",
+      "order": 2
+    },
+    {
+      "id": "chapter-3-sensor-simulation",
+      "title": "Sensor Simulation",
+      "description": "Understand sensor simulation in digital twins",
+      "order": 3
+    }
+  ],
+  "targetAudience": "Students with basic ROS 2 knowledge",
+  "estimatedDuration": "8-10 hours"
+}
+```
+
+### GET /api/education/module-2-digital-twin/chapter/{chapterId}
+Retrieve content for a specific chapter.
+
+**Parameters**:
+- chapterId: The ID of the chapter to retrieve
+
+**Response**:
+```json
+{
+  "chapterId": "chapter-1-gazebo-physics",
+  "title": "Physics-Based Simulation with Gazebo",
+  "content": "Markdown/MDX content for the chapter",
+  "sections": [
+    {
+      "id": "role-of-digital-twins",
+      "title": "Role of digital twins in Physical AI",
+      "order": 1
+    },
+    {
+      "id": "gravity-collisions-dynamics",
+      "title": "Simulating gravity, collisions, and dynamics",
+      "order": 2
+    }
+  ],
+  "prerequisites": ["basic-ros2-knowledge"],
+  "learningObjectives": [
+    "Understand the role of digital twins in Physical AI",
+    "Learn to simulate gravity, collisions, and dynamics"
+  ],
+  "duration": "2-3 hours"
+}
+```
+
+### GET /api/education/module-2-digital-twin/resources
+Retrieve additional resources for the module.
+
+**Response**:
+```json
+{
+  "resources": [
+    {
+      "id": "gazebo-setup-guide",
+      "title": "Gazebo Setup Guide",
+      "type": "tutorial",
+      "url": "/docs/module-2-digital-twin/resources/gazebo-setup"
+    },
+    {
+      "id": "unity-integration-concepts",
+      "title": "Unity-ROS Integration Concepts",
+      "type": "conceptual",
+      "url": "/docs/module-2-digital-twin/resources/unity-integration"
+    }
+  ]
+}
+```

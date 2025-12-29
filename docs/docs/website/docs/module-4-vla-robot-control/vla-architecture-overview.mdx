@@ -1,0 +1,36 @@
+# VLA Architecture Overview
+
+## System Architecture
+
+The Vision-Language-Action (VLA) system is designed as a modular pipeline that processes natural language commands through three main components:
+
+1. **Voice Processing**: Converts speech to text using Whisper
+2. **LLM Planning**: Decomposes tasks and generates action sequences
+3. **Action Execution**: Executes ROS 2 actions on the robot
+
+## Component Interactions
+
+```
+User Voice Command
+        ↓
+   Whisper Transcription
+        ↓
+   Intent Mapping
+        ↓
+   LLM Task Decomposition
+        ↓
+   Action Sequence Validation
+        ↓
+   Safety & Error Handling
+        ↓
+   ROS 2 Action Execution
+        ↓
+   Robot Response
+```
+
+## Key Design Patterns
+
+- **Event-Driven Architecture**: Components communicate through ROS 2 topics
+- **Modular Design**: Each component can be developed and tested independently
+- **Safety-First**: Multiple safety checks before action execution
+- **Simulation-First**: Validation in simulation before real-world deployment

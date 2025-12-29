@@ -1,0 +1,99 @@
+# Troubleshooting Guide
+
+## Common Issues and Solutions
+
+### Voice Processing Issues
+
+**Problem**: Whisper transcription accuracy is low
+- **Solution**: Check audio quality, implement preprocessing, use a different Whisper model size
+
+**Problem**: Audio input not detected
+- **Solution**: Verify microphone permissions, check audio device settings, ensure proper audio format
+
+**Problem**: High latency in voice processing
+- **Solution**: Use smaller Whisper models, optimize audio processing pipeline, implement streaming
+
+### Intent Mapping Issues
+
+**Problem**: Intent mapping fails to recognize commands
+- **Solution**: Expand pattern matching, implement ML-based classification, improve natural language processing
+
+**Problem**: Incorrect parameters extracted
+- **Solution**: Implement more robust parameter parsing, add context awareness, validate extracted parameters
+
+**Problem**: False positive intents
+- **Solution**: Add context awareness, implement confidence thresholds, refine pattern matching
+
+### LLM Planning Issues
+
+**Problem**: Inconsistent LLM output
+- **Solution**: Use structured prompting, implement output validation, add response consistency checks
+
+**Problem**: Invalid action sequences generated
+- **Solution**: Implement plan validation, add safety checks, use constrained output formats
+
+**Problem**: API rate limits exceeded
+- **Solution**: Implement caching, add rate limiting, use local models for common tasks
+
+### Action Execution Issues
+
+**Problem**: Action server not responding
+- **Solution**: Verify action server is running, check network connectivity, validate action interfaces
+
+**Problem**: Safety validation failures
+- **Solution**: Review safety constraints, adjust parameters, ensure environment is properly mapped
+
+**Problem**: Navigation failures
+- **Solution**: Check map accuracy, verify localization, implement obstacle avoidance
+
+### Simulation Issues
+
+**Problem**: Simulation-Reality gap
+- **Solution**: Improve simulation fidelity, add domain randomization, validate in multiple scenarios
+
+**Problem**: Performance issues in simulation
+- **Solution**: Optimize simulation settings, reduce scene complexity, use faster physics engine
+
+## Debugging Strategies
+
+### Enable Verbose Logging
+```bash
+# Enable detailed logging for VLA components
+export RCUTILS_LOGGING_SEVERITY_THRESHOLD=DEBUG
+```
+
+### Monitor Component Status
+```bash
+# Check ROS 2 node status
+ros2 node list
+ros2 lifecycle list <node_name>
+
+# Monitor topic data
+ros2 topic echo /voice_commands
+ros2 topic echo /robot_intents
+ros2 topic echo /generated_plans
+```
+
+### Validate Data Flow
+1. Verify voice commands are being received
+2. Check intent mapping results
+3. Confirm plan generation
+4. Validate action execution
+5. Monitor feedback and results
+
+## Performance Optimization
+
+### Reduce Latency
+- Use lightweight models for real-time processing
+- Implement asynchronous processing where possible
+- Optimize data serialization between components
+
+### Improve Accuracy
+- Fine-tune models on domain-specific data
+- Implement ensemble methods
+- Add confidence scoring and filtering
+
+### Enhance Safety
+- Implement multiple layers of safety checks
+- Add human-in-the-loop validation for critical actions
+- Use simulation for extensive testing before deployment

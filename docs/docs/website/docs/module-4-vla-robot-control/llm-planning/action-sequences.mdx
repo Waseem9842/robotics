@@ -1,0 +1,319 @@
+---
+title: Action Sequences
+sidebar_label: Action Sequences
+description: Converting language to ROS 2 action sequences in VLA systems
+---
+
+# Action Sequences
+
+This section covers converting natural language tasks to ROS 2 action sequences in Vision-Language-Action (VLA) systems.
+
+## Overview
+
+Action sequences represent the ordered list of ROS 2 actions that implement a complex task decomposed by the LLM. These sequences must be validated, safe, and executable by the robotic system.
+
+## Technical Architecture
+
+The action sequence generation follows this flow:
+
+1. LLM-generated task decomposition
+2. Conversion to ROS 2 action types
+3. Sequence validation and safety checks
+4. Execution planning with dependencies
+5. Monitoring and feedback
+
+## Implementation Steps
+
+### 1. Action Sequence Validator
+
+```python
+from typing import List, Dict, Any
+import json
+
+class ActionSequenceValidator:
+    def __init__(self):
+        self.valid_action_types = {
+            'navigation': ['go_to', 'move_to', 'navigate_to'],
+            'manipulation': ['pick_up', 'grasp', 'move_object'],
+            'sensing': ['look_at', 'detect', 'scan'],
+            'communication': ['speak', 'say']
+        }
+
+    def validate_sequence(self, action_sequence: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Validate an action sequence for safety and correctness
+        """
+        validation_result = {
+            'valid': True,
+            'errors': [],
+            'warnings': [],
+            'safe': True
+        }
+
+        for i, action in enumerate(action_sequence):
+            action_type = action.get('action_type', '')
+            parameters = action.get('parameters', {})
+
+            # Check if action type is valid
+            if action_type not in self.valid_action_types:
+                validation_result['errors'].append(f"Invalid action type at step {i}: {action_type}")
+                validation_result['valid'] = False
+
+            # Validate specific action parameters
+            self._validate_action_parameters(action, i, validation_result)
+
+            # Check for safety constraints
+            self._check_safety_constraints(action, i, validation_result)
+
+        return validation_result
+
+    def _validate_action_parameters(self, action: Dict[str, Any], step: int, result: Dict[str, Any]):
+        """Validate specific action parameters"""
+        action_type = action.get('action_type', '')
+        parameters = action.get('parameters', {})
+
+        if action_type == 'navigation':
+            if 'target' not in parameters:
+                result['errors'].append(f"Navigation action at step {step} missing 'target' parameter")
+                result['valid'] = False
+        elif action_type == 'manipulation':
+            if 'target' not in parameters:
+                result['errors'].append(f"Manipulation action at step {step} missing 'target' parameter")
+                result['valid'] = False
+        elif action_type == 'sensing':
+            if 'target' not in parameters:
+                result['warnings'].append(f"Sensing action at step {step} missing 'target' parameter")
+
+    def _check_safety_constraints(self, action: Dict[str, Any], step: int, result: Dict[str, Any]):
+        """Check safety constraints for the action"""
+        action_type = action.get('action_type', '')
+        parameters = action.get('parameters', {})
+
+        # Example safety checks
+        if action_type == 'navigation':
+            target = parameters.get('target', '')
+            # Check if target is in safe navigation area
+            if target.lower() in ['dangerous_zone', 'restricted_area']:
+                result['errors'].append(f"Navigation to {target} is in restricted area at step {step}")
+                result['safe'] = False
+        elif action_type == 'manipulation':
+            target = parameters.get('target', '')
+            # Check if target object is safe to manipulate
+            if target.lower() in ['hot_object', 'fragile_item']:
+                result['warnings'].append(f"Manipulation of {target} may be unsafe at step {step}")
+```
+
+### 2. Action Sequence Executor
+
+```python
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+from action_msgs.msg import GoalStatus
+import json
+import asyncio
+
+class ActionSequenceExecutor(Node):
+    def __init__(self):
+        super().__init__('action_sequence_executor')
+
+        # Subscriber for action sequences
+        self.sequence_subscriber = self.create_subscription(
+            String,
+            'generated_plans',
+            self.sequence_callback,
+            10
+        )
+
+        # Publisher for execution results
+        self.result_publisher = self.create_publisher(
+            String,
+            'execution_results',
+            10
+        )
+
+        # Publisher for action execution
+        self.action_publisher = self.create_publisher(
+            String,
+            'robot_actions',
+            10
+        )
+
+        self.sequence_validator = ActionSequenceValidator()
+
+    def sequence_callback(self, msg):
+        try:
+            # Parse the action sequence
+            sequence_data = json.loads(msg.data)
+            action_sequence = sequence_data.get('steps', [])
+            original_task = sequence_data.get('original_task', '')
+
+            self.get_logger().info(f'Received action sequence for task: {original_task}')
+            self.get_logger().info(f'Sequence contains {len(action_sequence)} steps')
+
+            # Validate the sequence
+            validation_result = self.sequence_validator.validate_sequence(action_sequence)
+
+            if validation_result['valid'] and validation_result['safe']:
+                self.get_logger().info('Action sequence is valid and safe, executing...')
+                self.execute_sequence(action_sequence)
+            else:
+                self.get_logger().error(f'Action sequence validation failed: {validation_result}')
+                self.publish_execution_result({
+                    'status': 'validation_failed',
+                    'errors': validation_result['errors'],
+                    'warnings': validation_result['warnings']
+                })
+
+        except json.JSONDecodeError as e:
+            self.get_logger().error(f'Invalid JSON in action sequence: {e}')
+        except Exception as e:
+            self.get_logger().error(f'Error processing action sequence: {e}')
+
+    def execute_sequence(self, action_sequence: List[Dict[str, Any]]):
+        """Execute the action sequence step by step"""
+        for i, action in enumerate(action_sequence):
+            self.get_logger().info(f'Executing step {i+1}/{len(action_sequence)}: {action}')
+
+            # Execute the action
+            success = self.execute_single_action(action)
+
+            if not success:
+                self.get_logger().error(f'Action execution failed at step {i+1}')
+                self.publish_execution_result({
+                    'status': 'execution_failed',
+                    'step': i+1,
+                    'action': action
+                })
+                return
+
+        # All actions completed successfully
+        self.get_logger().info('Action sequence completed successfully')
+        self.publish_execution_result({
+            'status': 'completed',
+            'steps_executed': len(action_sequence)
+        })
+
+    def execute_single_action(self, action: Dict[str, Any]) -> bool:
+        """Execute a single action and return success status"""
+        try:
+            # Publish the action to the appropriate ROS 2 interface
+            action_msg = String()
+            action_msg.data = json.dumps(action)
+            self.action_publisher.publish(action_msg)
+
+            # In a real implementation, this would involve:
+            # - Calling the appropriate ROS 2 action client
+            # - Waiting for action completion
+            # - Handling action feedback
+
+            # For this example, we'll assume success
+            return True
+        except Exception as e:
+            self.get_logger().error(f'Error executing action {action}: {e}')
+            return False
+
+    def publish_execution_result(self, result: Dict[str, Any]):
+        """Publish execution result"""
+        result_msg = String()
+        result_msg.data = json.dumps(result)
+        self.result_publisher.publish(result_msg)
+
+def main(args=None):
+    rclpy.init(args=args)
+    executor = ActionSequenceExecutor()
+    rclpy.spin(executor)
+    executor.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+### 3. Action Sequence Planning with Dependencies
+
+```python
+from typing import List, Dict, Any, Set
+import json
+
+class ActionSequencePlanner:
+    def __init__(self):
+        self.action_dependencies = {
+            'manipulation': ['navigation'],  # Need to navigate before manipulation
+            'sensing': ['navigation'],       # May need to navigate to sense
+        }
+
+    def plan_with_dependencies(self, action_sequence: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Plan action sequence considering dependencies between actions
+        """
+        planned_sequence = []
+        completed_actions: Set[str] = set()
+
+        for action in action_sequence:
+            action_type = action.get('action_type', '')
+
+            # Check dependencies
+            dependencies = self.action_dependencies.get(action_type, [])
+            for dep in dependencies:
+                if dep not in completed_actions:
+                    # Add a dependency action if needed
+                    if dep == 'navigation' and action_type in ['manipulation', 'sensing']:
+                        # Add navigation to appropriate location
+                        nav_action = self._create_navigation_action(action)
+                        if nav_action:
+                            planned_sequence.append(nav_action)
+
+            # Add the main action
+            planned_sequence.append(action)
+            completed_actions.add(action_type)
+
+        return planned_sequence
+
+    def _create_navigation_action(self, target_action: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a navigation action based on the target action
+        """
+        target = target_action.get('parameters', {}).get('target', '')
+
+        # In a real implementation, this would map target names to coordinates
+        # For this example, we'll create a generic navigation action
+        return {
+            'action_type': 'navigation',
+            'parameters': {'target': f'near_{target}'},
+            'description': f'Navigate near {target}'
+        }
+
+    def optimize_sequence(self, action_sequence: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Optimize action sequence for efficiency
+        """
+        # Remove redundant actions
+        optimized = []
+        seen_actions = set()
+
+        for action in action_sequence:
+            action_key = f"{action['action_type']}_{action['parameters']}"
+            if action_key not in seen_actions:
+                optimized.append(action)
+                seen_actions.add(action_key)
+
+        return optimized
+```
+
+## Best Practices
+
+- Always validate action sequences before execution
+- Consider dependencies between actions when planning
+- Implement safety checks for each action type
+- Use feedback mechanisms to monitor execution progress
+- Optimize sequences to reduce redundant actions
+
+## Troubleshooting
+
+Common issues and solutions:
+
+- **Invalid action sequences**: Implement comprehensive validation before execution
+- **Missing dependencies**: Add dependency checking and automatic insertion
+- **Execution failures**: Implement retry mechanisms and error recovery
+- **Performance issues**: Optimize sequences and implement caching

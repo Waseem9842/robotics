@@ -1,0 +1,123 @@
+---
+title: Whisper Integration
+sidebar_label: Whisper Integration
+description: Integrating Whisper for voice command processing in ROS 2
+---
+
+# Whisper Integration
+
+This section covers integrating OpenAI's Whisper for voice command processing in ROS 2 environments.
+
+## Overview
+
+Whisper is a state-of-the-art speech recognition model that can be integrated into robotics applications to enable voice command processing. In the context of ROS 2, Whisper can be used to transcribe user speech into text that can then be processed to generate robot actions.
+
+## Technical Architecture
+
+The Whisper integration follows this architecture:
+
+1. Audio input from microphone or audio stream
+2. Preprocessing of audio data (noise reduction, normalization)
+3. Whisper transcription to convert speech to text
+4. Post-processing of transcribed text
+5. Integration with ROS 2 message passing
+
+## Implementation Steps
+
+### 1. Setting up Whisper in Python
+
+```python
+import whisper
+import torch
+import rospy
+from std_msgs.msg import String
+
+# Load the Whisper model
+model = whisper.load_model("base")
+
+def transcribe_audio(audio_data):
+    """Transcribe audio data using Whisper"""
+    # Convert audio data to the format expected by Whisper
+    audio_tensor = torch.from_numpy(audio_data).float()
+
+    # Perform transcription
+    result = model.transcribe(audio_tensor)
+    return result["text"]
+```
+
+### 2. ROS 2 Node for Voice Processing
+
+```python
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+import pyaudio
+import numpy as np
+
+class VoiceProcessorNode(Node):
+    def __init__(self):
+        super().__init__('voice_processor')
+        self.publisher = self.create_publisher(String, 'voice_commands', 10)
+
+        # Initialize audio stream
+        self.audio = pyaudio.PyAudio()
+        self.stream = self.audio.open(
+            format=pyaudio.paFloat32,
+            channels=1,
+            rate=16000,
+            input=True,
+            frames_per_buffer=1024
+        )
+
+        # Load Whisper model
+        self.whisper_model = whisper.load_model("base")
+
+        # Start voice processing
+        self.timer = self.create_timer(0.1, self.process_voice)
+
+    def process_voice(self):
+        # Read audio data
+        data = self.stream.read(1024)
+        audio_array = np.frombuffer(data, dtype=np.float32)
+
+        # Transcribe using Whisper
+        text = self.transcribe_with_whisper(audio_array)
+
+        if text.strip():
+            # Publish the transcribed text
+            msg = String()
+            msg.data = text
+            self.publisher.publish(msg)
+            self.get_logger().info(f'Published: {text}')
+
+    def transcribe_with_whisper(self, audio_array):
+        # Convert to tensor and run through Whisper
+        audio_tensor = torch.from_numpy(audio_array).float()
+        result = self.whisper_model.transcribe(audio_tensor)
+        return result["text"]
+
+def main(args=None):
+    rclpy.init(args=args)
+    voice_processor = VoiceProcessorNode()
+    rclpy.spin(voice_processor)
+    voice_processor.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+## Best Practices
+
+- Use appropriate Whisper model size based on computational resources
+- Implement audio preprocessing to improve transcription quality
+- Handle transcription confidence scores to filter out low-quality results
+- Include error handling for audio input and model processing failures
+
+## Troubleshooting
+
+Common issues and solutions:
+
+- **Low transcription accuracy**: Check audio quality and implement preprocessing
+- **High latency**: Use smaller Whisper models or optimize audio processing pipeline
+- **Audio input problems**: Verify microphone permissions and audio settings
