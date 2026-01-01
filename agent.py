@@ -12,7 +12,7 @@ from openai import AsyncOpenAI
 # Load environment variables
 load_dotenv()
 
-OPENROUTER_API_KEY="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"
+OPENROUTER_API_KEY=""
 
 client = AsyncOpenAI(
     api_key=OPENROUTER_API_KEY,
