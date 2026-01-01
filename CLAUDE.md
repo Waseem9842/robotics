@@ -216,6 +216,12 @@ See `.specify/memory/constitution.md` for code quality, testing, performance, se
 - Markdown/MDX for Docusaurus documentation, Python 3.8+ for Isaac ROS packages + Docusaurus for documentation framework, NVIDIA Isaac Sim, Isaac ROS packages, ROS 2 Humble/Humble (003-isaac-ai-robot-brain)
 - Docusaurus static files in docs/ directory, Isaac Sim simulation assets (003-isaac-ai-robot-brain)
 - JavaScript/TypeScript for Docusaurus configuration, Python 3.8+ for Isaac ROS packages + Docusaurus 3.x, React, Node.js 18+, NVIDIA Isaac Sim, Isaac ROS packages, ROS 2 Humble (004-vla-robot-control)
+- Python 3.11+ (as specified in user input) + uv (project manager), Cohere SDK (embedding generation), Qdrant SDK (vector storage), requests/beautifulsoup (web scraping), python-dotenv (configuration) (005-embeddings-vector-storage)
+- Qdrant Cloud (vector database for embeddings with metadata) (005-embeddings-vector-storage)
+- Python 3.11 + qdrant-client, cohere, python-dotenv (001-rag-retrieval-validation)
+- Qdrant Cloud vector database (accessing existing collections) (001-rag-retrieval-validation)
+- Python 3.11, Node.js 18+ for Docusaurus + FastAPI, OpenAPI, Docusaurus, React, OpenAI Agents SDK (001-rag-agent-sdk)
+- N/A (using existing Qdrant vector database and agent functionality) (001-rag-agent-sdk)
 
 ## Recent Changes
 - 001-ros2-fundamentals: Added Node.js 18+ (for Docusaurus), JavaScript/TypeScript for configuration + Docusaurus 3.x, React, Markdown/MDX processors, Node.js package ecosystem

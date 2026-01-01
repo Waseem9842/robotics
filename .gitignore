@@ -1,11 +1,58 @@
 # Dependencies
 node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+ENV/
 
 # Build directories
 build/
 dist/
 .out/
 .output/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+.venv/
+.env
+.ENV/
+*.so
+.Python
+*.pyc
+*.pyo
+*.pyd
+.Python
+__pycache__/
+*.py[cod]
+*$py.class
+*$pyc.class
+*$pyo.class
+*.so
+.Python
+*.pyc
+*.pyo
+*.pyd
+.Python
+__pycache__/
+*.py[cod]
+*$py.class
+*$pyc.class
+*$pyo.class
+*.so
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+.hypothesis/
 
 # Environment variables
 .env*

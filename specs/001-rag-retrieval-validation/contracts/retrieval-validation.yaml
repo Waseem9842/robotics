@@ -1,0 +1,51 @@
+# API Contract: RAG Retrieval Validation
+
+## Endpoints
+
+### POST /validate-retrieval
+
+Validate retrieval accuracy for a given query against Qdrant collections.
+
+#### Request
+```json
+{
+  "query": "string (the test query)",
+  "top_k": "integer (number of results to retrieve, default: 5)",
+  "threshold": "float (minimum similarity score, default: 0.7)",
+  "collection_name": "string (Qdrant collection name, optional)"
+}
+```
+
+#### Response
+```json
+{
+  "query_id": "string",
+  "validation_passed": "boolean",
+  "accuracy_score": "float",
+  "retrieved_chunks": [
+    {
+      "id": "string",
+      "text": "string",
+      "score": "float",
+      "metadata": "object",
+      "source_url": "string"
+    }
+  ],
+  "ranking_correctness": "float",
+  "data_integrity_check": "boolean"
+}
+```
+
+#### Error Response
+```json
+{
+  "error": "string",
+  "details": "object"
+}
+```
+
+#### Success Criteria
+- Returns 200 OK with validation results
+- accuracy_score between 0 and 1
+- retrieved_chunks contains top_k results (or fewer if not available)
+- All required fields present in response
