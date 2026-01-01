@@ -1,0 +1,87 @@
+# API Contract: Embedding Pipeline
+
+## Ingestion Service Contract
+
+### Endpoints
+
+#### POST /ingest
+**Description**: Ingest content from a URL and store embeddings
+
+**Request**:
+```json
+{
+  "url": "https://example-book.com/page",
+  "config": {
+    "chunk_size": 512,
+    "overlap": 50
+  }
+}
+```
+
+**Response (Success)**:
+```json
+{
+  "status": "success",
+  "content_id": "unique-content-id",
+  "chunks_processed": 5,
+  "embeddings_generated": 5,
+  "storage_result": "stored_in_qdrant"
+}
+```
+
+**Response (Error)**:
+```json
+{
+  "status": "error",
+  "error_code": "CONTENT_EXTRACTION_FAILED",
+  "message": "Failed to extract content from URL"
+}
+```
+
+#### GET /health
+**Description**: Check service health
+
+**Response**:
+```json
+{
+  "status": "healthy",
+  "dependencies": {
+    "cohere_api": "connected",
+    "qdrant_db": "connected"
+  }
+}
+```
+
+### Data Models
+
+#### ContentChunk
+```json
+{
+  "id": "string",
+  "url": "string",
+  "content": "string",
+  "metadata": {
+    "title": "string",
+    "section": "string",
+    "page": "string"
+  }
+}
+```
+
+#### Embedding
+```json
+{
+  "content_id": "string",
+  "vector": "array of floats",
+  "model": "string",
+  "created_at": "timestamp"
+}
+```
+
+### Error Codes
+
+- `CONTENT_EXTRACTION_FAILED`: Could not fetch or parse content from URL
+- `EMBEDDING_GENERATION_FAILED`: Cohere API failed to generate embeddings
+- `STORAGE_FAILED`: Failed to store in Qdrant
+- `INVALID_URL`: URL is malformed or inaccessible
+- `CONFIGURATION_ERROR`: Missing or invalid configuration
